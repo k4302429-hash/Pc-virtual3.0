@@ -1,0 +1,43 @@
+
+name: Windows Virtual PC - Tailscale
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-pc:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Connect Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+
+      - name: Generate password and show IP
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          # Gera uma senha aleatória
+          $bytes = New-Object byte[] 24
+          $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+          $rng.GetBytes($bytes)
+          $senha = [Convert]::ToBase64String($bytes)
+          $senha = $senha.TrimEnd('=').Replace('+','A').Replace('/','B')
+
+          # Obtém o IP do Tailscale
+          $ip = tailscale.exe ip -4
+
+          if ($LASTEXITCODE -ne 0 -or -not $ip) {
+            throw "Não foi possível obter o IP do Tailscale."
+          }
+
+          Write-Host "IP Tailscale: $ip"
+          Write-Host "Senha gerada: $senha"
+          Write-Host "IMPORTANTE: a senha gerada não configura o login RDP."
+          
