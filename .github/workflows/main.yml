@@ -1,0 +1,71 @@
+
+name: Titan Cloud PC - Windows + Tailscale
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-pc:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Conectar ao Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+          timeout: 5m
+          retry: 3
+          use-cache: "false"
+          log-mode: normal
+
+      - name: Verificar conexão e gerar senha
+        shell: powershell
+        env:
+          RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "Verificando Tailscale..."
+
+          $ip = tailscale.exe ip -4
+
+          if ($LASTEXITCODE -ne 0 -or -not $ip) {
+            throw "Não foi possível obter o IP do Tailscale."
+          }
+
+          Write-Host "IP Tailscale: $ip"
+
+          Write-Host "Verificando estado da rede..."
+          tailscale.exe status
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "O Tailscale não está conectado corretamente."
+          }
+
+          if (-not $env:RDP_PASSWORD) {
+            $bytes = New-Object byte[] 24
+            $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+            try {
+              $rng.GetBytes($bytes)
+            }
+            finally {
+              $rng.Dispose()
+            }
+
+            $senha = [Convert]::ToBase64String($bytes).
+              TrimEnd('=').Replace('+','A').Replace('/','B')
+
+            Write-Host "Senha aleatória gerada."
+            Write-Host "Configure-a numa conta Windows autorizada antes de usar RDP."
+          }
+          else {
+            Write-Host "Secret RDP_PASSWORD configurado."
+            Write-Host "Por segurança, a senha não será exibida nos logs."
+          }
+
+          Write-Host "Verificação concluída."
+          
